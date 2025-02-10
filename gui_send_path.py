@@ -1,6 +1,7 @@
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, messagebox, scrolledtext
 import os
+import threading
 
 DEVICE_FILE = "/dev/pendrive_driver"  # Caminho do dispositivo
 
@@ -20,9 +21,53 @@ def listar_arquivos_do_driver():
     try:
         with open(DEVICE_FILE, "w") as device:
             device.write("LIST_FILES")  # Comando específico para listar arquivos
-        messagebox.showinfo("Sucesso", "Comando LIST_FILES enviado ao driver!")
+
+        # Abrir nova janela para exibir os arquivos listados
+        abrir_janela_listagem()
+
     except Exception as e:
         messagebox.showerror("Erro", f"Erro ao listar arquivos: {e}")
+
+def abrir_janela_listagem():
+    """Abre uma nova janela para exibir os arquivos listados."""
+    # Criar nova janela
+    janela_listagem = tk.Toplevel(root)
+    janela_listagem.title("Arquivos Listados")
+    janela_listagem.geometry("600x400")
+
+    # Adicionar um widget Text para exibir os arquivos
+    texto_listagem = scrolledtext.ScrolledText(janela_listagem, wrap=tk.WORD, width=70, height=20)
+    texto_listagem.pack(padx=10, pady=10)
+
+    # Variável de controle para a thread
+    flag_parar = threading.Event()
+
+    # Iniciar uma thread para ler o conteúdo do dmesg
+    threading.Thread(target=ler_dmesg, args=(texto_listagem, flag_parar), daemon=True).start()
+
+    # Função para fechar a janela e parar a thread
+    def fechar_janela():
+        flag_parar.set()  # Sinaliza para a thread parar
+        janela_listagem.destroy()
+
+    # Botão para fechar a janela
+    btn_fechar = tk.Button(janela_listagem, text="Fechar", command=fechar_janela)
+    btn_fechar.pack(pady=10)
+
+    # Configurar o fechamento da janela para parar a thread
+    janela_listagem.protocol("WM_DELETE_WINDOW", fechar_janela)
+
+def ler_dmesg(texto_listagem, flag_parar):
+    """Função para ler o conteúdo do dmesg e exibir os arquivos listados."""
+    try:
+        with open("/dev/kmsg", "r") as kmsg:
+            while not flag_parar.is_set():  # Verifica a flag de parada
+                linha = kmsg.readline()
+                if "File:" in linha:
+                    texto_listagem.insert(tk.END, linha)
+                    texto_listagem.see(tk.END)  # Rolar para a última linha
+    except Exception as e:
+        messagebox.showerror("Erro", f"Erro ao ler arquivos listados: {e}")
 
 def copiar_arquivo():
     """Função para copiar arquivos entre o pendrive e o disco local."""
@@ -48,7 +93,7 @@ def excluir_arquivo():
         except Exception as e:
             messagebox.showerror("Erro", f"Erro ao excluir arquivo: {e}")
 
-# Interface gráfica
+# Interface gráfica principal
 root = tk.Tk()
 root.title("UTFPR DRIVER")
 root.geometry("720x450")
