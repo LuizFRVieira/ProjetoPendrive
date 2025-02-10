@@ -1,13 +1,12 @@
-#include <linux/module.h>          // Para macros de módulo (module_init, module_exit, etc.)
-#include <linux/kernel.h>          // Para funções do kernel (pr_info, pr_err, etc.)
-#include <linux/fs.h>              // Para operações de sistema de arquivos (file_operations, etc.)
-#include <linux/uaccess.h>         // Para funções de acesso ao espaço do usuário (copy_from_user)
-#include <linux/slab.h>            // Para alocação de memória no kernel (kzalloc, kfree)
-#include <linux/file.h>            // Para manipulação de arquivos no kernel (filp_open, filp_close)
-#include <linux/dcache.h>          // Para manipulação de diretórios e dentries
-#include <linux/namei.h>           // Para manipulação de caminhos no kernel (kern_path)
-#include <linux/blkdev.h>          // Para operações de dispositivos de bloco (não utilizado neste código)
-#include <linux/mnt_idmapping.h>   // Para manipulação de mnt_idmap (vfs_unlink)
+#include <linux/module.h>          
+#include <linux/kernel.h>         
+#include <linux/fs.h>              
+#include <linux/uaccess.h>       
+#include <linux/slab.h>            
+#include <linux/file.h>            
+#include <linux/dcache.h>          
+#include <linux/namei.h>           
+#include <linux/mnt_idmapping.h>   
 
 #define DEVICE_NAME "pendrive_driver"  // Nome do dispositivo
 #define CLASS_NAME "pendrive"          // Nome da classe do dispositivo
