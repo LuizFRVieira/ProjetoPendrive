@@ -20,7 +20,7 @@ clean:
 	rm -rf *.o *.ko *.mod.* *.symvers *.order *~
 
 # Remover o módulo
-remove:
+remover:
 	@if lsmod | grep -q $(MODULE_NAME); then \
 		echo "Removendo módulo $(MODULE_NAME)..."; \
 		sudo rmmod $(MODULE_NAME); \
@@ -29,7 +29,7 @@ remove:
 	fi
 
 # Inserir o módulo
-insert:
+inserir:
 	@if [ -f $(MODULE_FILE) ]; then \
 		echo "Inserindo módulo $(MODULE_FILE)..."; \
 		sudo insmod $(MODULE_FILE); \
