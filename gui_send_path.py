@@ -95,7 +95,7 @@ def excluir_arquivo():
 
 # Interface gráfica principal
 root = tk.Tk()
-root.title("UTFPR DRIVER")
+root.title("PRNDRIVE DRIVER")
 root.geometry("720x450")
 root.configure(background='white')
 
