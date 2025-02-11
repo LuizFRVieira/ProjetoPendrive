@@ -1,23 +1,24 @@
-#include <linux/module.h>          
-#include <linux/kernel.h>         
-#include <linux/fs.h>              
-#include <linux/uaccess.h>       
-#include <linux/slab.h>            
-#include <linux/file.h>            
-#include <linux/dcache.h>          
-#include <linux/namei.h>           
-#include <linux/mnt_idmapping.h>   
+#include <linux/module.h>
+#include <linux/kernel.h>
+#include <linux/fs.h>
+#include <linux/uaccess.h>
+#include <linux/slab.h>
+#include <linux/file.h>
+#include <linux/dcache.h>
+#include <linux/namei.h>
+#include <linux/blkdev.h>
+#include <linux/mnt_idmapping.h>  // Incluir o cabeçalho necessário
 
-#define DEVICE_NAME "pendrive_driver"  // Nome do dispositivo
-#define CLASS_NAME "pendrive"          // Nome da classe do dispositivo
-#define BUFFER_SIZE 512                // Tamanho do buffer para operações de leitura/escrita
+#define DEVICE_NAME "pendrive_driver"
+#define CLASS_NAME "pendrive"
+#define BUFFER_SIZE 512
 
-static int major_number;               // Número major do dispositivo
-static struct class *driver_class = NULL;  // Classe do dispositivo
-static struct device *driver_device = NULL; // Dispositivo
-static char *path;                     // Caminho do pendrive
+static int major_number;
+static struct class *driver_class = NULL;
+static struct device *driver_device = NULL;
+static char *path;
 
-// Protótipos das funções
+// Protótipos
 static int device_open(struct inode *, struct file *);
 static int device_release(struct inode *, struct file *);
 static ssize_t device_write(struct file *, const char __user *, size_t, loff_t *);
@@ -27,30 +28,30 @@ static int excluir_arquivo(const char *caminho);
 
 // Estrutura para armazenar o contexto do diretório
 struct contexto_ {
-    struct dir_context context;  // Contexto para iteração de diretórios
+    struct dir_context context;
 };
 
 // Callback para listar arquivos
 static bool meu_callback(struct dir_context *ctx, const char *name, int namelen, loff_t offset, u64 ino, unsigned int d_type) {
-    pr_info("File: %.*s\n", namelen, name);  // Exibe o nome do arquivo no log do kernel
-    return true;  // Continua a listagem
+    pr_info("File: %.*s\n", namelen, name);
+    return true;
 }
 
 // Função para listar arquivos
 static int listar_arquivos_da_pasta(const char *path) {
     struct file *dir_file;
     struct contexto_ contexto_da_pasta = {
-        .context.actor = meu_callback,  // Define o callback para listar arquivos
+        .context.actor = meu_callback,
     };
 
-    dir_file = filp_open(path, O_RDONLY | O_DIRECTORY, 0);  // Abre o diretório
+    dir_file = filp_open(path, O_RDONLY | O_DIRECTORY, 0);
     if (IS_ERR(dir_file)) {
-        pr_err("Erro ao abrir o diretório: %ld\n", PTR_ERR(dir_file));  // Log de erro
+        pr_err("Erro ao abrir o diretório: %ld\n", PTR_ERR(dir_file));
         return PTR_ERR(dir_file);
     }
 
-    iterate_dir(dir_file, &contexto_da_pasta.context);  // Itera sobre os arquivos do diretório
-    filp_close(dir_file, NULL);  // Fecha o diretório
+    iterate_dir(dir_file, &contexto_da_pasta.context);
+    filp_close(dir_file, NULL);
     return 0;
 }
 
@@ -102,7 +103,7 @@ static int copiar_arquivo(const char *origem, const char *destino) {
     filp_close(arquivo_origem, NULL);
     filp_close(arquivo_destino, NULL);
 
-    pr_info("Arquivo copiado de %s para %s\n", origem, destino);  // Log de sucesso
+    pr_info("Arquivo copiado de %s para %s\n", origem, destino);
     return 0;
 }
 
@@ -112,9 +113,9 @@ static int excluir_arquivo(const char *caminho) {
     int ret;
     struct mnt_idmap *idmap;
 
-    ret = kern_path(caminho, LOOKUP_FOLLOW, &path);  // Resolve o caminho
+    ret = kern_path(caminho, LOOKUP_FOLLOW, &path);
     if (ret) {
-        pr_err("Erro ao encontrar o arquivo: %d\n", ret);  // Log de erro
+        pr_err("Erro ao encontrar o arquivo: %d\n", ret);
         return ret;
     }
 
@@ -124,13 +125,13 @@ static int excluir_arquivo(const char *caminho) {
     // Chamar vfs_unlink com os argumentos corretos
     ret = vfs_unlink(idmap, d_inode(path.dentry->d_parent), path.dentry, NULL);
     if (ret) {
-        pr_err("Erro ao excluir o arquivo: %d\n", ret);  // Log de erro
+        pr_err("Erro ao excluir o arquivo: %d\n", ret);
         path_put(&path);
         return ret;
     }
 
-    path_put(&path);  // Liberar o path
-    pr_info("Arquivo excluído: %s\n", caminho);  // Log de sucesso
+    path_put(&path);
+    pr_info("Arquivo excluído: %s\n", caminho);
     return 0;
 }
 
@@ -141,87 +142,87 @@ static ssize_t device_write(struct file *filep, const char __user *buffer, size_
     int ret = 0;
 
     if (len > PATH_MAX) {
-        pr_err("Caminho muito longo\n");  // Log de erro
+        pr_err("Caminho muito longo\n");
         return -ENAMETOOLONG;
     }
 
-    comando = kzalloc(len + 1, GFP_KERNEL);  // Alocar memória para o comando
+    comando = kzalloc(len + 1, GFP_KERNEL);
     if (!comando) {
-        pr_err("Falha ao alocar memória\n");  // Log de erro
+        pr_err("Falha ao alocar memória\n");
         return -ENOMEM;
     }
 
-    if (copy_from_user(comando, buffer, len)) {  // Copiar dados do espaço do usuário
-        pr_err("Falha ao copiar dados do usuário\n");  // Log de erro
+    if (copy_from_user(comando, buffer, len)) {
+        pr_err("Falha ao copiar dados do usuário\n");
         kfree(comando);
         return -EFAULT;
     }
 
-    comando[len] = '\0';  // Finalizar a string
+    comando[len] = '\0';
 
     if (strncmp(comando, "LIST_FILES", 10) == 0) {
-        pr_info("Listando arquivos da pasta %s\n\n", path);  // Log de listagem
+        pr_info("Listando arquivos da pasta %s\n\n", path);
         listar_arquivos_da_pasta(path);
     } else if (strncmp(comando, "COPY:", 5) == 0) {
         origem = strchr(comando, ':') + 1;
         destino = strchr(origem, ':');
         if (!destino) {
-            pr_err("Formato inválido para cópia\n");  // Log de erro
+            pr_err("Formato inválido para cópia\n");
             ret = -EINVAL;
             goto out;
         }
         *destino = '\0';
         destino++;
-        ret = copiar_arquivo(origem, destino);  // Copiar arquivo
+        ret = copiar_arquivo(origem, destino);
     } else if (strncmp(comando, "DELETE:", 7) == 0) {
         origem = strchr(comando, ':') + 1;
-        ret = excluir_arquivo(origem);  // Excluir arquivo
+        ret = excluir_arquivo(origem);
     } else {
-        strncpy(path, comando, 200);  // Copiar caminho para a variável global
-        path[199] = '\0';  // Garantir que a string seja terminada
-        pr_info("Caminho recebido: %s\n", path);  // Log de caminho recebido
+        strncpy(path, comando, 200); // Usar strncpy para evitar overflow
+        path[199] = '\0'; // Garantir que a string seja terminada
+        pr_info("Caminho recebido: %s\n", path);
     }
 
 out:
-    kfree(comando);  // Liberar memória alocada
-    return ret ? ret : len;  // Retornar o número de bytes processados ou erro
+    kfree(comando);
+    return ret ? ret : len;
 }
 
 // Função open
 static int device_open(struct inode *inodep, struct file *filep) {
-    pr_info("Device aberto %s\n", path);  // Log de abertura do dispositivo
+    pr_info("Device aberto %s\n", path);
     return 0;
 }
 
 // Função release
 static int device_release(struct inode *inodep, struct file *filep) {
-    pr_info("Device fechado\n");  // Log de fechamento do dispositivo
+    pr_info("Device fechado\n");
     return 0;
 }
 
 // Estrutura file_operations
 static struct file_operations fops = {
-    .open = device_open,      // Função chamada ao abrir o dispositivo
-    .release = device_release, // Função chamada ao fechar o dispositivo
-    .write = device_write,    // Função chamada ao escrever no dispositivo
+    .open = device_open,
+    .release = device_release,
+    .write = device_write,
 };
 
 // Inicialização do driver
 static int __init pendrive_driver_init(void) {
     int ret = 0;
 
-    pr_info("Inicializando o módulo %s\n", DEVICE_NAME);  // Log de inicialização
+    pr_info("Inicializando o módulo %s\n", DEVICE_NAME);
 
-    path = kzalloc(200, GFP_KERNEL);  // Alocar memória para o caminho
+    path = kzalloc(200, GFP_KERNEL);
     if (!path) {
-        pr_err("Falha ao alocar memória para o caminho\n");  // Log de erro
+        pr_err("Falha ao alocar memória para o caminho\n");
         return -ENOMEM;
     }
 
     // Registrar número major
     major_number = register_chrdev(0, DEVICE_NAME, &fops);
     if (major_number < 0) {
-        pr_err("Falha ao registrar char device\n");  // Log de erro
+        pr_err("Falha ao registrar char device\n");
         ret = major_number;
         goto fail_path;
     }
@@ -229,7 +230,7 @@ static int __init pendrive_driver_init(void) {
     // Criar classe do dispositivo
     driver_class = class_create(CLASS_NAME);
     if (IS_ERR(driver_class)) {
-        pr_err("Falha ao criar classe do dispositivo\n");  // Log de erro
+        pr_err("Falha ao criar classe do dispositivo\n");
         ret = PTR_ERR(driver_class);
         goto fail_chrdev;
     }
@@ -237,35 +238,35 @@ static int __init pendrive_driver_init(void) {
     // Criar dispositivo
     driver_device = device_create(driver_class, NULL, MKDEV(major_number, 0), NULL, DEVICE_NAME);
     if (IS_ERR(driver_device)) {
-        pr_err("Falha ao criar dispositivo\n");  // Log de erro
+        pr_err("Falha ao criar dispositivo\n");
         ret = PTR_ERR(driver_device);
         goto fail_class;
     }
 
-    pr_info("Dispositivo %s criado com sucesso\n", DEVICE_NAME);  // Log de sucesso
+    pr_info("Dispositivo %s criado com sucesso\n", DEVICE_NAME);
     return 0;
 
 fail_class:
-    class_destroy(driver_class);  // Destruir classe em caso de erro
+    class_destroy(driver_class);
 fail_chrdev:
-    unregister_chrdev(major_number, DEVICE_NAME);  // Desregistrar dispositivo em caso de erro
+    unregister_chrdev(major_number, DEVICE_NAME);
 fail_path:
-    kfree(path);  // Liberar memória alocada para o caminho
+    kfree(path);
     return ret;
 }
 
 // Finalização do driver
 static void __exit pendrive_driver_exit(void) {
-    kfree(path);  // Liberar memória alocada para o caminho
-    device_destroy(driver_class, MKDEV(major_number, 0));  // Destruir dispositivo
-    class_destroy(driver_class);  // Destruir classe
-    unregister_chrdev(major_number, DEVICE_NAME);  // Desregistrar dispositivo
-    pr_info("Módulo %s descarregado\n", DEVICE_NAME);  // Log de descarregamento
+    kfree(path);
+    device_destroy(driver_class, MKDEV(major_number, 0));
+    class_destroy(driver_class);
+    unregister_chrdev(major_number, DEVICE_NAME);
+    pr_info("Módulo %s descarregado\n", DEVICE_NAME);
 }
 
-module_init(pendrive_driver_init);  // Função de inicialização do módulo
-module_exit(pendrive_driver_exit);  // Função de finalização do módulo
+module_init(pendrive_driver_init);
+module_exit(pendrive_driver_exit);
 
-MODULE_LICENSE("GPL");  // Licença do módulo
-MODULE_AUTHOR("SOP NEW MODULE");  // Autor do módulo
-MODULE_DESCRIPTION("Driver de char device para listar arquivos de pendrive");  // Descrição do módulo
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("SOP NEW MODULE");
+MODULE_DESCRIPTION("Driver de char device para listar arquivos de pendrive");
