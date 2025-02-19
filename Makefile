@@ -33,23 +33,31 @@ inserir:
 	@if [ -f $(MODULE_FILE) ]; then \
 		echo "Inserindo módulo $(MODULE_FILE)..."; \
 		sudo insmod $(MODULE_FILE); \
+		sleep 1;  # Aguardar 1 segundo para o dispositivo ser criado \
 	else \
 		echo "Arquivo $(MODULE_FILE) não encontrado!"; \
 		exit 1; \
 	fi
 
 # Alterar permissões e executar echo
+
+#trocar a permissao de leitura pra publico
 setup:
-	@chmod 644 /dev/$(MODULE_NAME)
-	@echo "Configurando módulo com echo..."
-	@echo "valor_para_escrever" > /dev/$(MODULE_NAME)
+	@if [ -e /dev/$(MODULE_NAME) ]; then \
+		sudo chmod 644 /dev/$(MODULE_NAME); \
+		echo "Configurando módulo com echo..."; \
+		echo "valor_para_escrever" > /dev/$(MODULE_NAME); \
+	else \
+		echo "Dispositivo /dev/$(MODULE_NAME) não encontrado!"; \
+		exit 1; \
+	fi
 
 # Executar interface gráfica
 interface:
 	python3 gui_send_path.py
 
 # Executar todas as etapas
-run: all remove insert setup interface
+run: all remover inserir setup interface
 	@echo "Módulo $(MODULE_NAME) compilado, removido, inserido e configurado com sucesso."
 
-.PHONY: all clean remove insert setup interface run
+.PHONY: all clean remover inserir setup interface run
